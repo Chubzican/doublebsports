@@ -21,9 +21,36 @@ const parlayMultiplier = (legs) => legs.reduce((acc, odds) => {
   return acc * dec;
 }, 1);
 const genCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
-const sportIcon = { americanfootball_nfl: "🏈", basketball_nba: "🏀", baseball_mlb: "⚾", icehockey_nhl: "🏒", mma_mixed_martial_arts: "🥊" };
-const sportLabel = { americanfootball_nfl: "NFL", basketball_nba: "NBA", baseball_mlb: "MLB", icehockey_nhl: "NHL", mma_mixed_martial_arts: "MMA" };
-const SPORT_KEYS = ["americanfootball_nfl", "basketball_nba", "baseball_mlb", "icehockey_nhl", "mma_mixed_martial_arts"];
+const sportIcon = {
+  americanfootball_nfl: "🏈", americanfootball_ncaaf: "🏈", americanfootball_nfl_preseason: "🏈", americanfootball_cfl: "🏈",
+  basketball_nba_summer_league: "🏀", basketball_wnba: "🏀",
+  baseball_mlb: "⚾",
+  icehockey_nhl: "🏒",
+  mma_mixed_martial_arts: "🥊", boxing_boxing: "🥊",
+  soccer_fifa_world_cup: "⚽", soccer_epl: "⚽", soccer_usa_mls: "⚽", soccer_spain_la_liga: "⚽", soccer_italy_serie_a: "⚽", soccer_germany_bundesliga: "⚽", soccer_france_ligue_one: "⚽", soccer_conmebol_copa_libertadores: "⚽",
+  golf_masters_tournament_winner: "⛳", golf_the_open_championship_winner: "⛳",
+  aussierules_afl: "🏉",
+};
+const sportLabel = {
+  americanfootball_nfl: "NFL", americanfootball_ncaaf: "NCAAF", americanfootball_nfl_preseason: "NFL Pre", americanfootball_cfl: "CFL",
+  basketball_nba_summer_league: "NBA SL", basketball_wnba: "WNBA",
+  baseball_mlb: "MLB",
+  icehockey_nhl: "NHL",
+  mma_mixed_martial_arts: "MMA", boxing_boxing: "Boxing",
+  soccer_fifa_world_cup: "World Cup", soccer_epl: "EPL", soccer_usa_mls: "MLS", soccer_spain_la_liga: "La Liga", soccer_italy_serie_a: "Serie A", soccer_germany_bundesliga: "Bundesliga", soccer_france_ligue_one: "Ligue 1", soccer_conmebol_copa_libertadores: "Copa Lib",
+  golf_masters_tournament_winner: "Masters", golf_the_open_championship_winner: "The Open",
+  aussierules_afl: "AFL",
+};
+const SPORT_KEYS = [
+  "americanfootball_nfl", "americanfootball_ncaaf", "americanfootball_nfl_preseason", "americanfootball_cfl",
+  "basketball_nba_summer_league", "basketball_wnba",
+  "baseball_mlb",
+  "icehockey_nhl",
+  "mma_mixed_martial_arts", "boxing_boxing",
+  "soccer_fifa_world_cup", "soccer_epl", "soccer_usa_mls", "soccer_spain_la_liga", "soccer_italy_serie_a", "soccer_germany_bundesliga", "soccer_france_ligue_one", "soccer_conmebol_copa_libertadores",
+  "golf_masters_tournament_winner", "golf_the_open_championship_winner",
+  "aussierules_afl",
+];
 
 const C = {
   bg: "#0A0E1A", surface: "#111827", card: "#1A2235", border: "#1F2D45",
@@ -47,7 +74,7 @@ export default function DoubleBSports() {
   const [loginCode, setLoginCode] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [view, setView] = useState("games");
-  const [sport, setSport] = useState("americanfootball_nfl");
+  const [sport, setSport] = useState("soccer_fifa_world_cup");
   const [betSlip, setBetSlip] = useState([]);
   const [stakes, setStakes] = useState({});
   const [parlayMode, setParlayMode] = useState(false);
@@ -255,6 +282,8 @@ export default function DoubleBSports() {
     setNewMemberName(""); setNewMemberBalance("1000"); setNewMemberRole("member");
   };
   const updateMemberBalance = (id, delta) => setMembers(p => p.map(m => m.id === id ? { ...m, balance: +(m.balance + delta).toFixed(2) } : m));
+  const setMemberBalance = (id, amount) => { if (!amount) return; setMembers(p => p.map(m => m.id === id ? { ...m, balance: +parseFloat(amount).toFixed(2) } : m)); showToast("Balance updated!"); };
+  const [customAmounts, setCustomAmounts] = useState({});
   const toggleMemberStatus = (id) => setMembers(p => p.map(m => m.id === id ? { ...m, status: m.status === "active" ? "suspended" : "active" } : m));
   const promoteRole = (id, role) => setMembers(p => p.map(m => m.id === id ? { ...m, role } : m));
   const resetCode = (id) => { const code = genCode(); setMembers(p => p.map(m => m.id === id ? { ...m, inviteCode: code } : m)); setShowInvite({ name: members.find(m => m.id === id)?.name, code }); };
@@ -300,7 +329,7 @@ export default function DoubleBSports() {
         {[
           { id: "games", label: "🏟 Games" },
           { id: "slip", label: `🎯 Slip${betSlip.length ? ` (${betSlip.length})` : ""}` },
-          { id: "leaderboard", label: "🏆 Board" },
+          ...(canAdmin ? [{ id: "leaderboard", label: "🏆 Board" }] : []),
           { id: "history", label: "📋 My Bets" },
           ...(canAdmin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
         ].map(n => (
@@ -479,6 +508,10 @@ export default function DoubleBSports() {
                       <button onClick={() => updateMemberBalance(m.id, 100)} style={smallBtn(C.green)}>+$100</button>
                       <button onClick={() => updateMemberBalance(m.id, -100)} style={smallBtn(C.red)}>-$100</button>
                       <button onClick={() => updateMemberBalance(m.id, 500)} style={smallBtn(C.green)}>+$500</button>
+                      <div style={{ display: "flex", gap: 4, width: "100%", marginTop: 6 }}>
+                        <input type="number" placeholder="Set exact balance" value={customAmounts[m.id] || ""} onChange={e => setCustomAmounts(p => ({ ...p, [m.id]: e.target.value }))} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 12 }} />
+                        <button onClick={() => { setMemberBalance(m.id, customAmounts[m.id]); setCustomAmounts(p => ({ ...p, [m.id]: "" })); }} style={{ ...smallBtn(C.gold), whiteSpace: "nowrap" }}>Set</button>
+                      </div>
                       {m.role !== "owner" && currentUser.role === "owner" && (
                         <>
                           <button onClick={() => promoteRole(m.id, m.role === "mod" ? "member" : "mod")} style={smallBtn(C.blue)}>{m.role === "mod" ? "Demote" : "Make Mod"}</button>
