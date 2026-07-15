@@ -83,7 +83,7 @@ export default function DoubleBSports() {
   const [showInvite, setShowInvite] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  const API_KEY = import.meta.env.VITE_ODDS_API_KEY;
+  const API_KEY = import.meta.env.VITE_ODDS_API_KEY || "21f52815b23642d0ce9694b77e44b516";
 
   useEffect(() => {
     (async () => {
@@ -135,7 +135,11 @@ export default function DoubleBSports() {
           status: "open",
         };
       });
-      setGames((prev) => ({ ...prev, [sportKey]: parsed }));
+      // Filter out games that started more than 5 hours ago
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+      const filtered = parsed.filter(g => new Date(res.data.find(x => x.id === g.id)?.commence_time) > cutoff);
+      setGames((prev) => ({ ...prev, [sportKey]: filtered }));
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
       if (err.response?.status === 401) setGamesError("Invalid API key.");
