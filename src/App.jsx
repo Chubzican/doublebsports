@@ -1,18 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { createClient } from "@supabase/supabase-js";
 
-const DB = {
-  async get(key) {
-    try { const r = await window.storage.get(key, true); return r ? JSON.parse(r.value) : null; } catch { return null; }
-  },
-  async set(key, val) {
-    try { await window.storage.set(key, JSON.stringify(val), true); } catch {}
-  }
-};
-
-const SEED_MEMBERS = [
-  { id: "owner", name: "Commissioner", role: "owner", balance: 10000, inviteCode: null, status: "active", joinedAt: Date.now() },
-];
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const fmt = (o) => (o > 0 ? `+${o}` : `${o}`);
 const calcWin = (odds, stake) => odds > 0 ? +(stake * odds / 100).toFixed(2) : +(stake * 100 / Math.abs(odds)).toFixed(2);
@@ -94,17 +87,15 @@ export default function DoubleBSports() {
 
   useEffect(() => {
     (async () => {
-      const m = await DB.get("dbs_members");
-      const w = await DB.get("dbs_wagers");
-      if (m && m.length) setMembers(m);
-      else { setMembers(SEED_MEMBERS); await DB.set("dbs_members", SEED_MEMBERS); }
-      if (w) setWagers(w);
+      const { data: m } = await supabase.from("members").select("*");
+      const { data: w } = await supabase.from("wagers").select("*");
+      if (m && m.length) setMembers(m.map(r => ({ id: r.id, name: r.name, role: r.role, balance: r.balance, inviteCode: r.invite_code, status: r.status, joinedAt: r.joined_at })));
+      if (w) setWagers(w.map(r => ({ id: r.id, memberId: r.member_id, memberName: r.member_name, type: r.type, stake: r.stake, potentialReturn: r.potential_return, result: r.result, placedAt: r.placed_at, leg: r.leg, legs: r.legs })));
       setLoaded(true);
     })();
   }, []);
 
-  useEffect(() => { if (loaded && members.length) DB.set("dbs_members", members); }, [members, loaded]);
-  useEffect(() => { if (loaded) DB.set("dbs_wagers", wagers); }, [wagers, loaded]);
+
 
   const fetchOdds = useCallback(async (sportKey) => {
     if (!API_KEY) { setGamesError("No API key found. Check your .env file."); return; }
@@ -198,7 +189,7 @@ export default function DoubleBSports() {
   const parlayMult = betSlip.length > 1 ? parlayMultiplier(betSlip.map(b => b.odds)) : 0;
   const parlayReturn = parlayStakeNum > 0 && betSlip.length > 1 ? +(parlayStakeNum * parlayMult).toFixed(2) : 0;
 
-  const placeBets = () => {
+  const placeBets = async () => {
     if (!currentUser) return;
     if (parlayMode) {
       if (betSlip.length < 2) { showToast("Need at least 2 legs for a parlay", "error"); return; }
@@ -211,6 +202,8 @@ export default function DoubleBSports() {
         placedAt: new Date().toLocaleString()
       };
       const updated = { ...currentUser, balance: +(currentUser.balance - parlayStakeNum).toFixed(2) };
+      await supabase.from("wagers").insert({ id: wager.id, member_id: wager.memberId, member_name: wager.memberName, type: wager.type, legs: wager.legs, stake: wager.stake, potential_return: wager.potentialReturn, result: wager.result, placed_at: wager.placedAt });
+      await supabase.from("members").update({ balance: updated.balance }).eq("id", currentUser.id);
       setWagers(p => [wager, ...p]);
       refreshUser(updated);
       setBetSlip([]); setStakes({}); setParlayStake(""); setParlayMode(false);
@@ -230,6 +223,10 @@ export default function DoubleBSports() {
         };
       });
       const updated = { ...currentUser, balance: +(currentUser.balance - totalStake).toFixed(2) };
+      for (const w of newWagers) {
+        await supabase.from("wagers").insert({ id: w.id, member_id: w.memberId, member_name: w.memberName, type: w.type, leg: w.leg, stake: w.stake, potential_return: w.potentialReturn, result: w.result, placed_at: w.placedAt });
+      }
+      await supabase.from("members").update({ balance: updated.balance }).eq("id", currentUser.id);
       setWagers(p => [...newWagers, ...p]);
       refreshUser(updated);
       setBetSlip([]); setStakes({});
@@ -238,55 +235,85 @@ export default function DoubleBSports() {
     setView("history");
   };
 
-  const gradeWager = (wagerId, result, legKey = null) => {
-    setWagers(prev => prev.map(w => {
-      if (w.id !== wagerId) return w;
-      if (w.type === "straight") {
+  const gradeWager = async (wagerId, result, legKey = null) => {
+    const w = wagers.find(x => x.id === wagerId);
+    if (!w) return;
+    if (w.type === "straight") {
+      const member = members.find(m => m.id === w.memberId);
+      if (!member) return;
+      const payout = result === "win" ? w.potentialReturn : result === "push" ? w.stake : 0;
+      const newBalance = +(member.balance + payout).toFixed(2);
+      await supabase.from("wagers").update({ result, leg: { ...w.leg, result } }).eq("id", wagerId);
+      await supabase.from("members").update({ balance: newBalance }).eq("id", member.id);
+      setWagers(prev => prev.map(x => x.id === wagerId ? { ...x, result, leg: { ...x.leg, result } } : x));
+      setMembers(pm => pm.map(m => m.id === member.id ? { ...m, balance: newBalance } : m));
+      if (currentUser?.id === member.id) setCurrentUser({ ...currentUser, balance: newBalance });
+    } else {
+      const legs = w.legs.map(l => l.key === legKey ? { ...l, result } : l);
+      const allGraded = legs.every(l => l.result !== "pending");
+      const anyLoss = legs.some(l => l.result === "loss");
+      const anyPush = legs.some(l => l.result === "push");
+      let parlayResult = "pending";
+      let payout = 0;
+      if (allGraded) {
+        if (anyLoss) { parlayResult = "loss"; payout = 0; }
+        else if (anyPush) { parlayResult = "push"; payout = w.stake; }
+        else { parlayResult = "win"; payout = w.potentialReturn; }
         const member = members.find(m => m.id === w.memberId);
-        if (!member) return w;
-        const payout = result === "win" ? w.potentialReturn : result === "push" ? w.stake : 0;
-        const updated = { ...member, balance: +(member.balance + payout).toFixed(2) };
-        setMembers(pm => pm.map(m => m.id === updated.id ? updated : m));
-        if (currentUser?.id === updated.id) setCurrentUser(updated);
-        return { ...w, result, leg: { ...w.leg, result } };
-      } else {
-        const legs = w.legs.map(l => l.key === legKey ? { ...l, result } : l);
-        const allGraded = legs.every(l => l.result !== "pending");
-        const anyLoss = legs.some(l => l.result === "loss");
-        const anyPush = legs.some(l => l.result === "push");
-        let parlayResult = "pending";
-        let payout = 0;
-        if (allGraded) {
-          if (anyLoss) { parlayResult = "loss"; payout = 0; }
-          else if (anyPush) { parlayResult = "push"; payout = w.stake; }
-          else { parlayResult = "win"; payout = w.potentialReturn; }
-          const member = members.find(m => m.id === w.memberId);
-          if (member) {
-            const updated = { ...member, balance: +(member.balance + payout).toFixed(2) };
-            setMembers(pm => pm.map(m => m.id === updated.id ? updated : m));
-            if (currentUser?.id === updated.id) setCurrentUser(updated);
-          }
+        if (member) {
+          const newBalance = +(member.balance + payout).toFixed(2);
+          await supabase.from("members").update({ balance: newBalance }).eq("id", member.id);
+          setMembers(pm => pm.map(m => m.id === member.id ? { ...m, balance: newBalance } : m));
+          if (currentUser?.id === member.id) setCurrentUser({ ...currentUser, balance: newBalance });
         }
-        return { ...w, legs, result: parlayResult };
       }
-    }));
+      await supabase.from("wagers").update({ result: parlayResult, legs }).eq("id", wagerId);
+      setWagers(prev => prev.map(x => x.id === wagerId ? { ...x, legs, result: parlayResult } : x));
+    }
     showToast("Wager graded");
   };
 
-  const addMember = () => {
+  const addMember = async () => {
     if (!newMemberName.trim()) return;
     const code = genCode();
     const m = { id: `m-${Date.now()}`, name: newMemberName.trim(), role: newMemberRole, balance: parseFloat(newMemberBalance) || 1000, inviteCode: code, status: "active", joinedAt: Date.now() };
+    await supabase.from("members").insert({ id: m.id, name: m.name, role: m.role, balance: m.balance, invite_code: m.inviteCode, status: m.status, joined_at: m.joinedAt });
     setMembers(p => [...p, m]);
     setShowInvite({ name: m.name, code });
     setNewMemberName(""); setNewMemberBalance("1000"); setNewMemberRole("member");
   };
-  const updateMemberBalance = (id, delta) => setMembers(p => p.map(m => m.id === id ? { ...m, balance: +(m.balance + delta).toFixed(2) } : m));
-  const setMemberBalance = (id, amount) => { if (!amount) return; setMembers(p => p.map(m => m.id === id ? { ...m, balance: +parseFloat(amount).toFixed(2) } : m)); showToast("Balance updated!"); };
+  const updateMemberBalance = async (id, delta) => {
+    const member = members.find(m => m.id === id);
+    if (!member) return;
+    const newBalance = +(member.balance + delta).toFixed(2);
+    await supabase.from("members").update({ balance: newBalance }).eq("id", id);
+    setMembers(p => p.map(m => m.id === id ? { ...m, balance: newBalance } : m));
+  };
+  const setMemberBalance = async (id, amount) => {
+    if (!amount) return;
+    const newBalance = +parseFloat(amount).toFixed(2);
+    await supabase.from("members").update({ balance: newBalance }).eq("id", id);
+    setMembers(p => p.map(m => m.id === id ? { ...m, balance: newBalance } : m));
+    showToast("Balance updated!");
+  };
   const [customAmounts, setCustomAmounts] = useState({});
-  const toggleMemberStatus = (id) => setMembers(p => p.map(m => m.id === id ? { ...m, status: m.status === "active" ? "suspended" : "active" } : m));
-  const promoteRole = (id, role) => setMembers(p => p.map(m => m.id === id ? { ...m, role } : m));
-  const resetCode = (id) => { const code = genCode(); setMembers(p => p.map(m => m.id === id ? { ...m, inviteCode: code } : m)); setShowInvite({ name: members.find(m => m.id === id)?.name, code }); };
+  const toggleMemberStatus = async (id) => {
+    const member = members.find(m => m.id === id);
+    if (!member) return;
+    const newStatus = member.status === "active" ? "suspended" : "active";
+    await supabase.from("members").update({ status: newStatus }).eq("id", id);
+    setMembers(p => p.map(m => m.id === id ? { ...m, status: newStatus } : m));
+  };
+  const promoteRole = async (id, role) => {
+    await supabase.from("members").update({ role }).eq("id", id);
+    setMembers(p => p.map(m => m.id === id ? { ...m, role } : m));
+  };
+  const resetCode = async (id) => {
+    const code = genCode();
+    await supabase.from("members").update({ invite_code: code }).eq("id", id);
+    setMembers(p => p.map(m => m.id === id ? { ...m, inviteCode: code } : m));
+    setShowInvite({ name: members.find(m => m.id === id)?.name, code });
+  };
 
   const canAdmin = currentUser?.role === "owner" || currentUser?.role === "mod";
   const myWagers = wagers.filter(w => w.memberId === currentUser?.id);
