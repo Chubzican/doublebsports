@@ -631,8 +631,7 @@ function GameRow({ game, toggleLeg, isSelected }) {
           {game.live ? <span style={{ color: "#EF4444", fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#EF4444", display: "inline-block" }} />LIVE</span> : game.time}
         </div>
       </div>
-<div style={{ display: "grid", gridTemplateColumns: "1fr repeat(3, 75px)", gap: 4, alignItems: "center" }}>        <div>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 5 }}>{game.away}</div>
+<div style={{ display: "grid", gridTemplateColumns: "1fr repeat(3, 68px)", gap: 3, alignItems: "center", fontSize: 11 }}>          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 5 }}>{game.away}</div>
           <div style={{ fontSize: 14, fontWeight: 600 }}>{game.home}</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
