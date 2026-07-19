@@ -20,7 +20,6 @@ const sportIcon = {
   baseball_mlb: "⚾",
   icehockey_nhl: "🏒",
   mma_mixed_martial_arts: "🥊", boxing_boxing: "🥊",
-  soccer_fifa_world_cup: "⚽", soccer_epl: "⚽", soccer_usa_mls: "⚽", soccer_spain_la_liga: "⚽", soccer_italy_serie_a: "⚽", soccer_germany_bundesliga: "⚽", soccer_france_ligue_one: "⚽", soccer_conmebol_copa_libertadores: "⚽",
   golf_masters_tournament_winner: "⛳", golf_the_open_championship_winner: "⛳",
   aussierules_afl: "🏉",
 };
@@ -30,7 +29,6 @@ const sportLabel = {
   baseball_mlb: "MLB",
   icehockey_nhl: "NHL",
   mma_mixed_martial_arts: "MMA", boxing_boxing: "Boxing",
-  soccer_fifa_world_cup: "World Cup", soccer_epl: "EPL", soccer_usa_mls: "MLS", soccer_spain_la_liga: "La Liga", soccer_italy_serie_a: "Serie A", soccer_germany_bundesliga: "Bundesliga", soccer_france_ligue_one: "Ligue 1", soccer_conmebol_copa_libertadores: "Copa Lib",
   golf_masters_tournament_winner: "Masters", golf_the_open_championship_winner: "The Open",
   aussierules_afl: "AFL",
 };
@@ -40,7 +38,6 @@ const SPORT_KEYS = [
   "baseball_mlb",
   "icehockey_nhl",
   "mma_mixed_martial_arts", "boxing_boxing",
-  "soccer_fifa_world_cup", "soccer_epl", "soccer_usa_mls", "soccer_spain_la_liga", "soccer_italy_serie_a", "soccer_germany_bundesliga", "soccer_france_ligue_one", "soccer_conmebol_copa_libertadores",
   "golf_masters_tournament_winner", "golf_the_open_championship_winner",
   "aussierules_afl",
 ];
@@ -67,7 +64,7 @@ export default function DoubleBSports() {
   const [loginCode, setLoginCode] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [view, setView] = useState("games");
-  const [sport, setSport] = useState("soccer_fifa_world_cup");
+  const [sport, setSport] = useState("americanfootball_nfl")
   const [betSlip, setBetSlip] = useState([]);
   const [stakes, setStakes] = useState({});
   const [parlayMode, setParlayMode] = useState(false);
@@ -138,7 +135,7 @@ export default function DoubleBSports() {
       // Filter out games that started more than 5 hours ago
       const now = new Date();
       const cutoff = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-      const filtered = parsed.filter(g => new Date(res.data.find(x => x.id === g.id)?.commence_time) > cutoff);
+      const filtered = parsed.filter(g => new Date(res.data.find(x => x.id === g.id)?.commence_time) > new Date());
       setGames((prev) => ({ ...prev, [sportKey]: filtered }));
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
