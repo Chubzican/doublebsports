@@ -367,7 +367,7 @@ export default function DoubleBSports() {
         ))}
       </nav>
 
-      <div style={{ flex: 1, maxWidth: 900, margin: "0 auto", width: "100%", padding: "16px 12px" }}>
+      <div style={{ flex: 1, maxWidth: 900, margin: "0 auto", width: "100%", padding: "12px 4px" }}>
 
         {view === "games" && (
           <div>
