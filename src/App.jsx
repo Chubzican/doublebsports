@@ -135,7 +135,11 @@ export default function DoubleBSports() {
       // Filter out games that started more than 5 hours ago
       const now = new Date();
       const cutoff = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-      const filtered = parsed.filter(g => new Date(res.data.find(x => x.id === g.id)?.commence_time) > new Date());
+      const now = new Date();
+const filtered = parsed.filter(g => {
+  const gameTime = new Date(res.data.find(x => x.id === g.id)?.commence_time);
+  return gameTime > now;
+});
       setGames((prev) => ({ ...prev, [sportKey]: filtered }));
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
