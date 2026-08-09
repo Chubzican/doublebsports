@@ -19,7 +19,7 @@ const sportIcon = {
   basketball_nba_summer_league: "🏀", basketball_wnba: "🏀",
   baseball_mlb: "⚾",
   icehockey_nhl: "🏒",
-  mma_mixed_martial_arts: "🥊", boxing_boxing: "🥊",
+   "🥊", boxing_boxing: "🥊",
   golf_masters_tournament_winner: "⛳", golf_the_open_championship_winner: "⛳",
   aussierules_afl: "🏉",
 };
@@ -28,7 +28,7 @@ const sportLabel = {
   basketball_nba_summer_league: "NBA SL", basketball_wnba: "WNBA",
   baseball_mlb: "MLB",
   icehockey_nhl: "NHL",
-  mma_mixed_martial_arts: "MMA", boxing_boxing: "Boxing",
+  boxing_boxing: "Boxing",
   golf_masters_tournament_winner: "Masters", golf_the_open_championship_winner: "The Open",
   aussierules_afl: "AFL",
 };
@@ -37,7 +37,7 @@ const SPORT_KEYS = [
   "basketball_nba_summer_league", "basketball_wnba",
   "baseball_mlb",
   "icehockey_nhl",
-  "mma_mixed_martial_arts", "boxing_boxing",
+  "boxing_boxing",
   "golf_masters_tournament_winner", "golf_the_open_championship_winner",
   "aussierules_afl",
 ];
