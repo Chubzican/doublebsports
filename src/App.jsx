@@ -19,7 +19,6 @@ const sportIcon = {
   basketball_nba_summer_league: "🏀", basketball_wnba: "🏀",
   baseball_mlb: "⚾",
   icehockey_nhl: "🏒",
-   "🥊", boxing_boxing: "🥊",
   golf_masters_tournament_winner: "⛳", golf_the_open_championship_winner: "⛳",
   aussierules_afl: "🏉",
 };
