@@ -135,7 +135,6 @@ export default function DoubleBSports() {
       // Filter out games that started more than 5 hours ago
       const now = new Date();
       const cutoff = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-      const now = new Date();
 const filtered = parsed.filter(g => {
   const gameTime = new Date(res.data.find(x => x.id === g.id)?.commence_time);
   return gameTime > now;
@@ -180,7 +179,7 @@ const filtered = parsed.filter(g => {
   const toggleLeg = (game, type, label, odds) => {
     const key = `${game.id}-${type}`;
     setBetSlip(prev => {
-      if (prev.find(b => b.key === key)) return prev.filter(b => b.key !== key);
+
       if (parlayMode && prev.length >= 5) { showToast("Max 5 legs in a parlay", "error"); return prev; }
       return [...prev, { key, gameId: game.id, type, label, odds, home: game.home, away: game.away, sport: game.sport }];
     });
