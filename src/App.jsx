@@ -15,26 +15,36 @@ const parlayMultiplier = (legs) => legs.reduce((acc, odds) => {
 }, 1);
 const genCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 const sportIcon = {
-  americanfootball_nfl: "🏈",
-  americanfootball_ncaaf: "🏈",
-  basketball_nba: "🏀",
+  americanfootball_nfl: "🏈", americanfootball_ncaaf: "🏈", americanfootball_nfl_preseason: "🏈", americanfootball_cfl: "🏈",
+  basketball_nba_summer_league: "🏀", basketball_wnba: "🏀",
   baseball_mlb: "⚾",
   icehockey_nhl: "🏒",
+  mma_mixed_martial_arts: "🥊", boxing_boxing: "🥊",
+  soccer_fifa_world_cup: "⚽", soccer_epl: "⚽", soccer_usa_mls: "⚽", soccer_spain_la_liga: "⚽", soccer_italy_serie_a: "⚽", soccer_germany_bundesliga: "⚽", soccer_france_ligue_one: "⚽", soccer_conmebol_copa_libertadores: "⚽",
+  golf_masters_tournament_winner: "⛳", golf_the_open_championship_winner: "⛳",
+  aussierules_afl: "🏉",
 };
 const sportLabel = {
-  americanfootball_nfl: "NFL",
-  americanfootball_ncaaf: "NCAAF",
-  basketball_nba: "NBA",
+  americanfootball_nfl: "NFL", americanfootball_ncaaf: "NCAAF", americanfootball_nfl_preseason: "NFL Pre", americanfootball_cfl: "CFL",
+  basketball_nba_summer_league: "NBA SL", basketball_wnba: "WNBA",
   baseball_mlb: "MLB",
   icehockey_nhl: "NHL",
+  mma_mixed_martial_arts: "MMA", boxing_boxing: "Boxing",
+  soccer_fifa_world_cup: "World Cup", soccer_epl: "EPL", soccer_usa_mls: "MLS", soccer_spain_la_liga: "La Liga", soccer_italy_serie_a: "Serie A", soccer_germany_bundesliga: "Bundesliga", soccer_france_ligue_one: "Ligue 1", soccer_conmebol_copa_libertadores: "Copa Lib",
+  golf_masters_tournament_winner: "Masters", golf_the_open_championship_winner: "The Open",
+  aussierules_afl: "AFL",
 };
 const SPORT_KEYS = [
-  "americanfootball_nfl",
-  "americanfootball_ncaaf",
-  "basketball_nba",
+  "americanfootball_nfl", "americanfootball_ncaaf", "americanfootball_nfl_preseason", "americanfootball_cfl",
+  "basketball_nba_summer_league", "basketball_wnba",
   "baseball_mlb",
   "icehockey_nhl",
+  "mma_mixed_martial_arts", "boxing_boxing",
+  "soccer_fifa_world_cup", "soccer_epl", "soccer_usa_mls", "soccer_spain_la_liga", "soccer_italy_serie_a", "soccer_germany_bundesliga", "soccer_france_ligue_one", "soccer_conmebol_copa_libertadores",
+  "golf_masters_tournament_winner", "golf_the_open_championship_winner",
+  "aussierules_afl",
 ];
+
 const C = {
   bg: "#0A0E1A", surface: "#111827", card: "#1A2235", border: "#1F2D45",
   gold: "#F5B800", goldDim: "#F5B80025", blue: "#3B82F6",
@@ -57,7 +67,7 @@ export default function DoubleBSports() {
   const [loginCode, setLoginCode] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [view, setView] = useState("games");
-  const [sport, setSport] = useState("americanfootball_nfl")
+  const [sport, setSport] = useState("soccer_fifa_world_cup");
   const [betSlip, setBetSlip] = useState([]);
   const [stakes, setStakes] = useState({});
   const [parlayMode, setParlayMode] = useState(false);
@@ -128,10 +138,7 @@ export default function DoubleBSports() {
       // Filter out games that started more than 5 hours ago
       const now = new Date();
       const cutoff = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-const filtered = parsed.filter(g => {
-  const gameTime = new Date(res.data.find(x => x.id === g.id)?.commence_time);
-  return gameTime > now;
-});
+      const filtered = parsed.filter(g => new Date(res.data.find(x => x.id === g.id)?.commence_time) > cutoff);
       setGames((prev) => ({ ...prev, [sportKey]: filtered }));
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
@@ -172,7 +179,7 @@ const filtered = parsed.filter(g => {
   const toggleLeg = (game, type, label, odds) => {
     const key = `${game.id}-${type}`;
     setBetSlip(prev => {
-
+      if (prev.find(b => b.key === key)) return prev.filter(b => b.key !== key);
       if (parlayMode && prev.length >= 5) { showToast("Max 5 legs in a parlay", "error"); return prev; }
       return [...prev, { key, gameId: game.id, type, label, odds, home: game.home, away: game.away, sport: game.sport }];
     });
@@ -496,9 +503,9 @@ const filtered = parsed.filter(g => {
           <div>
             <h2 style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800 }}>⚙️ Admin Panel</h2>
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              {["members", "grade"].map(t => (
+              {["members", "grade", "odds"].map(t => (
                 <button key={t} onClick={() => setAdminTab(t)} style={{ padding: "7px 16px", borderRadius: 6, border: `1px solid ${adminTab === t ? C.gold : C.border}`, background: adminTab === t ? C.goldDim : "transparent", color: adminTab === t ? C.gold : C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                  {t === "grade" ? "Grade Wagers" : "Members"}
+                  {t === "grade" ? "Grade Wagers" : t === "odds" ? "Edit Odds" : "Members"}
                 </button>
               ))}
             </div>
@@ -588,6 +595,9 @@ const filtered = parsed.filter(g => {
                 ))}
               </div>
             )}
+            {adminTab === "odds" && (
+              <OddsEditor games={games} sport={sport} setGames={setGames} C={C} SPORT_KEYS={SPORT_KEYS} sportIcon={sportIcon} sportLabel={sportLabel} setSport={setSport} />
+            )}
           </div>
         )}
       </div>
@@ -595,6 +605,51 @@ const filtered = parsed.filter(g => {
   );
 }
 
+
+function OddsEditor({ games, sport, setGames, C, SPORT_KEYS, sportIcon, sportLabel, setSport }) {
+  const [editGame, setEditGame] = useState(null);
+  const [edits, setEdits] = useState({});
+  const currentGames = games[sport] || [];
+  const saveOdds = (gameId) => {
+    setGames(prev => ({ ...prev, [sport]: (prev[sport] || []).map(g => g.id === gameId ? { ...g, ...edits } : g) }));
+    setEditGame(null); setEdits({});
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, overflowX: "auto" }}>
+        {SPORT_KEYS.map(s => (
+          <button key={s} onClick={() => setSport(s)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${sport === s ? C.gold : C.border}`, background: sport === s ? C.goldDim : "transparent", color: sport === s ? C.gold : C.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>{sportIcon[s]} {sportLabel[s]}</button>
+        ))}
+      </div>
+      {currentGames.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 20 }}>No games loaded. Go to Games tab and refresh first.</div>}
+      {currentGames.map(game => (
+        <div key={game.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>{game.away} @ {game.home}</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{game.time}</div>
+          {editGame === game.id ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div><div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>Away ML</div><input type="number" defaultValue={game.awayOdds} onChange={e => setEdits(p => ({ ...p, awayOdds: parseInt(e.target.value) }))} style={inputStyle} /></div>
+                <div><div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>Home ML</div><input type="number" defaultValue={game.homeOdds} onChange={e => setEdits(p => ({ ...p, homeOdds: parseInt(e.target.value) }))} style={inputStyle} /></div>
+                <div><div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>Away Spread</div><input type="number" defaultValue={game.awaySpread} onChange={e => setEdits(p => ({ ...p, awaySpread: parseFloat(e.target.value), homeSpread: -parseFloat(e.target.value) }))} style={inputStyle} /></div>
+                <div><div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>O/U Total</div><input type="number" defaultValue={game.ou} onChange={e => setEdits(p => ({ ...p, ou: parseFloat(e.target.value) }))} style={inputStyle} /></div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => saveOdds(game.id)} style={{ flex: 1, background: C.gold, color: C.bg, border: "none", borderRadius: 6, padding: "8px 0", fontWeight: 800, cursor: "pointer" }}>Save</button>
+                <button onClick={() => { setEditGame(null); setEdits({}); }} style={{ flex: 1, background: C.border, color: C.muted, border: "none", borderRadius: 6, padding: "8px 0", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: C.muted }}>ML: {game.awayOdds > 0 ? "+" : ""}{game.awayOdds} / {game.homeOdds > 0 ? "+" : ""}{game.homeOdds} · Spread: {game.awaySpread} · O/U: {game.ou}</div>
+              <button onClick={() => { setEditGame(game.id); setEdits({}); }} style={{ background: C.goldDim, border: `1px solid ${C.gold}`, color: C.gold, padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Edit</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 function LoginScreen({ loginName, setLoginName, loginCode, setLoginCode, loginErr, onLogin }) {
   return (
     <div style={{ background: "#0A0E1A", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Inter','Segoe UI',sans-serif" }}>
