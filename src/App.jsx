@@ -86,7 +86,7 @@ export default function DoubleBSports() {
       const { data: w } = await supabase.from("wagers").select("*");
       const { data: p } = await supabase.from("passwords").select("*");
       if (m && m.length) setMembers(m.map(r => ({ id: r.id, name: r.name, role: r.role, balance: r.balance, inviteCode: r.invite_code, status: r.status, joinedAt: r.joined_at, maxBet: r.max_bet || 100, addedBy: r.added_by })));
-      if (w) setWagers(w.map(r => ({ id: r.id, memberId: r.member_id, memberName: r.member_name, type: r.type, stake: r.stake, potentialReturn: r.potential_return, result: r.result, placedAt: r.placed_at, leg: r.leg, legs: r.legs })));
+      if (w) setWagers(w.map(r => ({ id: r.id, memberId: r.member_id, memberName: r.member_name, type: r.type, stake: r.stake, potentialReturn: r.potential_return, result: r.result, placedAt: r.placed_at, leg: r.leg, legs: r.legs, gameTime: r.game_time })));
       if (p) { const pwMap = {}; p.forEach(x => { pwMap[x.member_id] = x.password; }); setPasswords(pwMap); }
       setLoaded(true);
     })();
@@ -129,6 +129,7 @@ export default function DoubleBSports() {
           ou: over ? over.point : null,
           overOdds: over ? toAmerican(over.price) : -110,
           underOdds: under ? toAmerican(under.price) : -110,
+          commenceTime: game.commence_time,
           status: "open",
         };
       });
@@ -202,7 +203,7 @@ export default function DoubleBSports() {
     setBetSlip(prev => {
       if (prev.find(b => b.key === key)) return prev.filter(b => b.key !== key);
       if (parlayMode && prev.length >= 5) { showToast("Max 5 legs in a parlay", "error"); return prev; }
-      return [...prev, { key, gameId: game.id, type, label, odds, home: game.home, away: game.away, sport: game.sport }];
+      return [...prev, { key, gameId: game.id, type, label, odds, home: game.home, away: game.away, sport: game.sport, gameTime: game.commenceTime || game.time }];
     });
   };
   const isSelected = (gid, type) => betSlip.some(b => b.gameId === gid && b.type === type);
@@ -226,10 +227,11 @@ export default function DoubleBSports() {
         id: `w-${Date.now()}`, memberId: currentUser.id, memberName: currentUser.name,
         type: "parlay", legs: betSlip.map(b => ({ ...b, result: "pending" })),
         stake: parlayStakeNum, potentialReturn: parlayReturn, result: "pending",
-        placedAt: new Date().toLocaleString()
+        placedAt: new Date().toLocaleString(),
+        gameTime: betSlip[0]?.gameTime || null
       };
       const updated = { ...currentUser, balance: +(currentUser.balance - parlayStakeNum).toFixed(2) };
-      await supabase.from("wagers").insert({ id: wager.id, member_id: wager.memberId, member_name: wager.memberName, type: wager.type, legs: wager.legs, stake: wager.stake, potential_return: wager.potentialReturn, result: wager.result, placed_at: wager.placedAt });
+      await supabase.from("wagers").insert({ id: wager.id, member_id: wager.memberId, member_name: wager.memberName, type: wager.type, legs: wager.legs, stake: wager.stake, potential_return: wager.potentialReturn, result: wager.result, placed_at: wager.placedAt, game_time: wager.gameTime });
       await supabase.from("members").update({ balance: updated.balance }).eq("id", currentUser.id);
       setWagers(p => [wager, ...p]);
       refreshUser(updated);
@@ -248,12 +250,13 @@ export default function DoubleBSports() {
           id: `w-${Date.now()}-${b.key}`, memberId: currentUser.id, memberName: currentUser.name,
           type: "straight", leg: { ...b, result: "pending" },
           stake: st, potentialReturn: +(st + calcWin(b.odds, st)).toFixed(2),
-          result: "pending", placedAt: new Date().toLocaleString()
+          result: "pending", placedAt: new Date().toLocaleString(),
+          gameTime: b.gameTime || null
         };
       });
       const updated = { ...currentUser, balance: +(currentUser.balance - totalStake).toFixed(2) };
       for (const w of newWagers) {
-        await supabase.from("wagers").insert({ id: w.id, member_id: w.memberId, member_name: w.memberName, type: w.type, leg: w.leg, stake: w.stake, potential_return: w.potentialReturn, result: w.result, placed_at: w.placedAt });
+        await supabase.from("wagers").insert({ id: w.id, member_id: w.memberId, member_name: w.memberName, type: w.type, leg: w.leg, stake: w.stake, potential_return: w.potentialReturn, result: w.result, placed_at: w.placedAt, game_time: w.gameTime });
       }
       await supabase.from("members").update({ balance: updated.balance }).eq("id", currentUser.id);
       setWagers(p => [...newWagers, ...p]);
@@ -302,7 +305,19 @@ export default function DoubleBSports() {
     showToast("Wager graded");
   };
 
-  const addMember = async () => {
+  const cancelWager = async (wagerId) => {
+    const w = wagers.find(x => x.id === wagerId);
+    if (!w) return;
+    const member = members.find(m => m.id === w.memberId);
+    if (!member) return;
+    const newBalance = +(member.balance + w.stake).toFixed(2);
+    await supabase.from("wagers").delete().eq("id", wagerId);
+    await supabase.from("members").update({ balance: newBalance }).eq("id", member.id);
+    setWagers(p => p.filter(x => x.id !== wagerId));
+    setMembers(pm => pm.map(m => m.id === member.id ? { ...m, balance: newBalance } : m));
+    if (currentUser?.id === member.id) setCurrentUser({ ...currentUser, balance: newBalance });
+    showToast("Wager cancelled — stake refunded!");
+  };
     if (!newMemberName.trim()) return;
     const code = genCode();
     const m = { id: `m-${Date.now()}`, name: newMemberName.trim(), role: newMemberRole, balance: parseFloat(newMemberBalance) || 1000, inviteCode: code, status: "active", joinedAt: Date.now(), addedBy: currentUser.id };
@@ -679,10 +694,15 @@ export default function DoubleBSports() {
                     <div style={{ fontWeight: 700, marginTop: 8 }}>All wagers graded</div>
                   </div>
                 )}
-                {wagers.filter(w => w.result === "pending").map(w => (
+                {wagers.filter(w => w.result === "pending").map(w => {
+                  const gameNotStarted = w.gameTime ? new Date(w.gameTime) > new Date() : true;
+                  return (
                   <div key={w.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{w.memberName} · {w.type === "parlay" ? `${w.legs.length}-Leg Parlay` : "Straight"} · ${w.stake} → ${w.potentialReturn}</div>
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{w.placedAt}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{w.memberName} · {w.type === "parlay" ? `${w.legs.length}-Leg Parlay` : "Straight"} · ${w.stake} → ${w.potentialReturn}</div>
+                      {gameNotStarted && <button onClick={() => cancelWager(w.id)} style={{ ...smallBtn(C.red), fontSize: 11, padding: "4px 8px" }}>✕ Cancel</button>}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{w.placedAt}{w.gameTime && <span> · Game: {new Date(w.gameTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>}</div>
                     {w.type === "straight" ? (
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 13, marginBottom: 6 }}>{w.leg.label} · <span style={{ color: C.gold }}>{fmt(w.leg.odds)}</span></div>
@@ -707,7 +727,8 @@ export default function DoubleBSports() {
                       ))
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             {adminTab === "odds" && (
