@@ -318,7 +318,7 @@ export default function DoubleBSports() {
     if (currentUser?.id === member.id) setCurrentUser({ ...currentUser, balance: newBalance });
     showToast("Wager cancelled — stake refunded!");
   };
-    if (!newMemberName.trim()) return;
+    const addMember = async () => { if (!newMemberName.trim()) return;
     const code = genCode();
     const m = { id: `m-${Date.now()}`, name: newMemberName.trim(), role: newMemberRole, balance: parseFloat(newMemberBalance) || 1000, inviteCode: code, status: "active", joinedAt: Date.now(), addedBy: currentUser.id };
     await supabase.from("members").insert({ id: m.id, name: m.name, role: m.role, balance: m.balance, invite_code: m.inviteCode, status: m.status, joined_at: m.joinedAt, added_by: m.addedBy });
