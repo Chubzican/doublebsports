@@ -15,32 +15,26 @@ const parlayMultiplier = (legs) => legs.reduce((acc, odds) => {
 }, 1);
 const genCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 const sportIcon = {
-  americanfootball_nfl: "🏈", americanfootball_ncaaf: "🏈", americanfootball_nfl_preseason: "🏈", americanfootball_cfl: "🏈",
-  basketball_nba_summer_league: "🏀", basketball_wnba: "🏀",
+  americanfootball_nfl: "🏈",
+  americanfootball_ncaaf: "🏈",
+  basketball_nba: "🏀",
   baseball_mlb: "⚾",
   icehockey_nhl: "🏒",
-  golf_masters_tournament_winner: "⛳", golf_the_open_championship_winner: "⛳",
-  aussierules_afl: "🏉",
 };
 const sportLabel = {
-  americanfootball_nfl: "NFL", americanfootball_ncaaf: "NCAAF", americanfootball_nfl_preseason: "NFL Pre", americanfootball_cfl: "CFL",
-  basketball_nba_summer_league: "NBA SL", basketball_wnba: "WNBA",
+  americanfootball_nfl: "NFL",
+  americanfootball_ncaaf: "NCAAF",
+  basketball_nba: "NBA",
   baseball_mlb: "MLB",
   icehockey_nhl: "NHL",
-  boxing_boxing: "Boxing",
-  golf_masters_tournament_winner: "Masters", golf_the_open_championship_winner: "The Open",
-  aussierules_afl: "AFL",
 };
 const SPORT_KEYS = [
-  "americanfootball_nfl", "americanfootball_ncaaf", "americanfootball_nfl_preseason", "americanfootball_cfl",
-  "basketball_nba_summer_league", "basketball_wnba",
+  "americanfootball_nfl",
+  "americanfootball_ncaaf",
+  "basketball_nba",
   "baseball_mlb",
   "icehockey_nhl",
-  "boxing_boxing",
-  "golf_masters_tournament_winner", "golf_the_open_championship_winner",
-  "aussierules_afl",
 ];
-
 const C = {
   bg: "#0A0E1A", surface: "#111827", card: "#1A2235", border: "#1F2D45",
   gold: "#F5B800", goldDim: "#F5B80025", blue: "#3B82F6",
