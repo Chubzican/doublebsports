@@ -53,12 +53,16 @@ export default function DoubleBSports() {
   const [loaded, setLoaded] = useState(false);
   const [members, setMembers] = useState([]);
   const [wagers, setWagers] = useState([]);
+  const [passwords, setPasswords] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [loginName, setLoginName] = useState("");
   const [loginCode, setLoginCode] = useState("");
   const [loginErr, setLoginErr] = useState("");
+  const [setupMode, setSetupMode] = useState(null); // member who needs to set password
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [view, setView] = useState("games");
-  const [sport, setSport] = useState("soccer_fifa_world_cup");
+  const [sport, setSport] = useState("americanfootball_nfl");
   const [betSlip, setBetSlip] = useState([]);
   const [stakes, setStakes] = useState({});
   const [parlayMode, setParlayMode] = useState(false);
@@ -80,8 +84,10 @@ export default function DoubleBSports() {
     (async () => {
       const { data: m } = await supabase.from("members").select("*");
       const { data: w } = await supabase.from("wagers").select("*");
+      const { data: p } = await supabase.from("passwords").select("*");
       if (m && m.length) setMembers(m.map(r => ({ id: r.id, name: r.name, role: r.role, balance: r.balance, inviteCode: r.invite_code, status: r.status, joinedAt: r.joined_at, maxBet: r.max_bet || 100, addedBy: r.added_by })));
       if (w) setWagers(w.map(r => ({ id: r.id, memberId: r.member_id, memberName: r.member_name, type: r.type, stake: r.stake, potentialReturn: r.potential_return, result: r.result, placedAt: r.placed_at, leg: r.leg, legs: r.legs })));
+      if (p) { const pwMap = {}; p.forEach(x => { pwMap[x.member_id] = x.password; }); setPasswords(pwMap); }
       setLoaded(true);
     })();
   }, []);
@@ -152,17 +158,40 @@ export default function DoubleBSports() {
 
   const handleLogin = () => {
     if (loginName.trim().toLowerCase() === "commissioner") {
-      if (loginCode.trim() !== "commissioner") { setLoginErr("Incorrect password."); return; }
+      const commPassword = passwords["owner"] || "commissioner";
+      if (loginCode.trim() !== commPassword) { setLoginErr("Incorrect password."); return; }
       const owner = members.find(m => m.role === "owner");
       if (owner) { setCurrentUser(owner); setLoginErr(""); return; }
     }
     const found = members.find(m =>
       m.name.toLowerCase() === loginName.trim().toLowerCase() &&
       m.status === "active" &&
-      (m.role === "owner" || m.inviteCode === loginCode.trim().toUpperCase())
+      (m.role === "owner" || m.inviteCode === loginCode.trim().toUpperCase() || passwords[m.id] === loginCode.trim())
     );
-    if (found) { setCurrentUser(found); setLoginErr(""); }
-    else setLoginErr("Name or invite code not found.");
+    if (found) {
+      // If member has a password set, require it; if using invite code, prompt setup
+      if (passwords[found.id]) {
+        if (loginCode.trim() !== passwords[found.id]) { setLoginErr("Incorrect password."); return; }
+        setCurrentUser(found); setLoginErr("");
+      } else if (loginCode.trim().toUpperCase() === found.inviteCode) {
+        // First time — prompt to set password
+        setSetupMode(found);
+        setLoginErr("");
+      } else {
+        setLoginErr("Name or invite code not found.");
+      }
+    } else {
+      setLoginErr("Name or invite code not found.");
+    }
+  };
+
+  const handleSetPassword = async () => {
+    if (!newPassword.trim()) { setLoginErr("Enter a password."); return; }
+    if (newPassword !== newPasswordConfirm) { setLoginErr("Passwords don't match."); return; }
+    await supabase.from("passwords").upsert({ member_id: setupMode.id, password: newPassword.trim() });
+    setPasswords(p => ({ ...p, [setupMode.id]: newPassword.trim() }));
+    setCurrentUser(setupMode);
+    setSetupMode(null); setNewPassword(""); setNewPasswordConfirm(""); setLoginErr("");
   };
 
   const logout = () => { setCurrentUser(null); setLoginName(""); setLoginCode(""); setBetSlip([]); setStakes({}); };
@@ -314,6 +343,21 @@ export default function DoubleBSports() {
     setMembers(p => p.map(m => m.id === id ? { ...m, inviteCode: code } : m));
     setShowInvite({ name: members.find(m => m.id === id)?.name, code });
   };
+  const deleteMember = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this member?")) return;
+    await supabase.from("wagers").delete().eq("member_id", id);
+    await supabase.from("passwords").delete().eq("member_id", id);
+    await supabase.from("members").delete().eq("id", id);
+    setMembers(p => p.filter(m => m.id !== id));
+    showToast("Member deleted");
+  };
+  const changeCommPassword = async (newPw) => {
+    if (!newPw.trim()) return;
+    await supabase.from("passwords").upsert({ member_id: "owner", password: newPw.trim() });
+    setPasswords(p => ({ ...p, owner: newPw.trim() }));
+    showToast("Commissioner password updated!");
+  };
+  const [newCommPassword, setNewCommPassword] = useState("");
   const setMaxBet = async (id, amount) => {
     if (!amount) return;
     const val = +parseFloat(amount).toFixed(2);
@@ -356,6 +400,23 @@ export default function DoubleBSports() {
   };
 
   if (!loaded) return <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.gold, fontSize: 18, fontWeight: 700 }}>Loading Double B Sports…</div>;
+  if (!currentUser && setupMode) return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Inter','Segoe UI',sans-serif" }}>
+      <div style={{ width: "100%", maxWidth: 360 }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>🔐</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: C.gold }}>Set Your Password</div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Hey {setupMode.name}! Create a password for future logins.</div>
+        </div>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+          <input type="password" placeholder="New password" value={newPassword} onChange={e => setNewPassword(e.target.value)} style={inputStyle} />
+          <input type="password" placeholder="Confirm password" value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)} style={inputStyle} onKeyDown={e => e.key === "Enter" && handleSetPassword()} />
+          {loginErr && <div style={{ color: C.red, fontSize: 13 }}>{loginErr}</div>}
+          <button onClick={handleSetPassword} style={{ background: C.gold, color: C.bg, border: "none", borderRadius: 8, padding: "13px 0", fontWeight: 900, fontSize: 16, cursor: "pointer" }}>Set Password & Enter</button>
+        </div>
+      </div>
+    </div>
+  );
   if (!currentUser) return <LoginScreen loginName={loginName} setLoginName={setLoginName} loginCode={loginCode} setLoginCode={setLoginCode} loginErr={loginErr} onLogin={handleLogin} />;
 
   return (
@@ -560,9 +621,18 @@ export default function DoubleBSports() {
                   </div>
                 </div>
                 {members.filter(m => currentUser.role === "owner" || m.addedBy === currentUser.id || m.id === currentUser.id).map(m => (
-                  <MemberCard key={m.id} m={m} members={members} currentUser={currentUser} C={C} inputStyle={inputStyle} smallBtn={smallBtn} btnStyle={btnStyle} customAmounts={customAmounts} setCustomAmounts={setCustomAmounts} maxBetAmounts={maxBetAmounts} setMaxBetAmounts={setMaxBetAmounts} updateMemberBalance={updateMemberBalance} setMemberBalance={setMemberBalance} setMaxBet={setMaxBet} promoteRole={promoteRole} toggleMemberStatus={toggleMemberStatus} resetCode={resetCode} />
+                  <MemberCard key={m.id} m={m} members={members} currentUser={currentUser} C={C} inputStyle={inputStyle} smallBtn={smallBtn} btnStyle={btnStyle} customAmounts={customAmounts} setCustomAmounts={setCustomAmounts} maxBetAmounts={maxBetAmounts} setMaxBetAmounts={setMaxBetAmounts} updateMemberBalance={updateMemberBalance} setMemberBalance={setMemberBalance} setMaxBet={setMaxBet} promoteRole={promoteRole} toggleMemberStatus={toggleMemberStatus} resetCode={resetCode} deleteMember={deleteMember} />
                 ))}
 
+                {currentUser.role === "owner" && (
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 4 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10, color: C.gold }}>🔐 Change Commissioner Password</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input type="password" placeholder="New password" value={newCommPassword} onChange={e => setNewCommPassword(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                      <button onClick={() => { changeCommPassword(newCommPassword); setNewCommPassword(""); }} style={{ ...smallBtn(C.gold), whiteSpace: "nowrap" }}>Update</button>
+                    </div>
+                  </div>
+                )}
                 {currentUser.role === "owner" && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: C.gold }}>📊 Weekly P&L by Moderator</div>
@@ -696,7 +766,7 @@ function OddsEditor({ games, sport, setGames, C, SPORT_KEYS, sportIcon, sportLab
   );
 }
 
-function MemberCard({ m, members, currentUser, C, inputStyle, smallBtn, btnStyle, customAmounts, setCustomAmounts, maxBetAmounts, setMaxBetAmounts, updateMemberBalance, setMemberBalance, setMaxBet, promoteRole, toggleMemberStatus, resetCode }) {
+function MemberCard({ m, members, currentUser, C, inputStyle, smallBtn, btnStyle, customAmounts, setCustomAmounts, maxBetAmounts, setMaxBetAmounts, updateMemberBalance, setMemberBalance, setMaxBet, promoteRole, toggleMemberStatus, resetCode, deleteMember }) {
   const addedByMember = members.find(x => x.id === m.addedBy);
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
@@ -728,6 +798,7 @@ function MemberCard({ m, members, currentUser, C, inputStyle, smallBtn, btnStyle
             <button onClick={() => promoteRole(m.id, m.role === "mod" ? "member" : "mod")} style={smallBtn(C.blue)}>{m.role === "mod" ? "Demote" : "Make Mod"}</button>
             <button onClick={() => toggleMemberStatus(m.id)} style={smallBtn(m.status === "active" ? C.red : C.green)}>{m.status === "active" ? "Suspend" : "Reinstate"}</button>
             <button onClick={() => resetCode(m.id)} style={smallBtn(C.muted)}>New Code</button>
+            <button onClick={() => deleteMember(m.id)} style={smallBtn(C.red)}>🗑 Delete</button>
           </>
         )}
       </div>
