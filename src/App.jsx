@@ -80,7 +80,7 @@ export default function DoubleBSports() {
     (async () => {
       const { data: m } = await supabase.from("members").select("*");
       const { data: w } = await supabase.from("wagers").select("*");
-      if (m && m.length) setMembers(m.map(r => ({ id: r.id, name: r.name, role: r.role, balance: r.balance, inviteCode: r.invite_code, status: r.status, joinedAt: r.joined_at })));
+      if (m && m.length) setMembers(m.map(r => ({ id: r.id, name: r.name, role: r.role, balance: r.balance, inviteCode: r.invite_code, status: r.status, joinedAt: r.joined_at, maxBet: r.max_bet || 100 })));
       if (w) setWagers(w.map(r => ({ id: r.id, memberId: r.member_id, memberName: r.member_name, type: r.type, stake: r.stake, potentialReturn: r.potential_return, result: r.result, placedAt: r.placed_at, leg: r.leg, legs: r.legs })));
       setLoaded(true);
     })();
@@ -189,6 +189,8 @@ export default function DoubleBSports() {
     if (parlayMode) {
       if (betSlip.length < 2) { showToast("Need at least 2 legs for a parlay", "error"); return; }
       if (parlayStakeNum <= 0) { showToast("Enter a stake", "error"); return; }
+      if (parlayStakeNum > (currentUser.maxBet || 100)) { showToast(`Max bet is $${currentUser.maxBet || 100}`, "error"); return; }
+      if (parlayMult > 20) { showToast("Max parlay is 20x payout", "error"); return; }
       if (parlayStakeNum > currentUser.balance) { showToast("Insufficient balance", "error"); return; }
       const wager = {
         id: `w-${Date.now()}`, memberId: currentUser.id, memberName: currentUser.name,
@@ -207,6 +209,8 @@ export default function DoubleBSports() {
       const valid = betSlip.filter(b => (parseFloat(stakes[b.key]) || 0) > 0);
       if (!valid.length) { showToast("Enter a stake", "error"); return; }
       const totalStake = valid.reduce((s, b) => s + parseFloat(stakes[b.key]), 0);
+      const overLimit = valid.find(b => parseFloat(stakes[b.key]) > (currentUser.maxBet || 100));
+      if (overLimit) { showToast(`Max bet is $${currentUser.maxBet || 100} per wager`, "error"); return; }
       if (totalStake > currentUser.balance) { showToast("Insufficient balance", "error"); return; }
       const newWagers = valid.map(b => {
         const st = parseFloat(stakes[b.key]);
@@ -309,6 +313,14 @@ export default function DoubleBSports() {
     setMembers(p => p.map(m => m.id === id ? { ...m, inviteCode: code } : m));
     setShowInvite({ name: members.find(m => m.id === id)?.name, code });
   };
+  const setMaxBet = async (id, amount) => {
+    if (!amount) return;
+    const val = +parseFloat(amount).toFixed(2);
+    await supabase.from("members").update({ max_bet: val }).eq("id", id);
+    setMembers(p => p.map(m => m.id === id ? { ...m, maxBet: val } : m));
+    showToast("Max bet updated!");
+  };
+  const [maxBetAmounts, setMaxBetAmounts] = useState({});
 
   const canAdmin = currentUser?.role === "owner" || currentUser?.role === "mod";
   const myWagers = wagers.filter(w => w.memberId === currentUser?.id);
@@ -533,6 +545,11 @@ export default function DoubleBSports() {
                       <div style={{ display: "flex", gap: 4, width: "100%", marginTop: 6 }}>
                         <input type="number" placeholder="Set exact balance" value={customAmounts[m.id] || ""} onChange={e => setCustomAmounts(p => ({ ...p, [m.id]: e.target.value }))} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 12 }} />
                         <button onClick={() => { setMemberBalance(m.id, customAmounts[m.id]); setCustomAmounts(p => ({ ...p, [m.id]: "" })); }} style={{ ...smallBtn(C.gold), whiteSpace: "nowrap" }}>Set</button>
+                      </div>
+                      <div style={{ display: "flex", gap: 4, width: "100%", marginTop: 6, alignItems: "center" }}>
+                        <span style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap" }}>Max Bet: <strong style={{ color: C.gold }}>${m.maxBet || 100}</strong></span>
+                        <input type="number" placeholder="Set max bet" value={maxBetAmounts[m.id] || ""} onChange={e => setMaxBetAmounts(p => ({ ...p, [m.id]: e.target.value }))} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 12 }} />
+                        <button onClick={() => { setMaxBet(m.id, maxBetAmounts[m.id]); setMaxBetAmounts(p => ({ ...p, [m.id]: "" })); }} style={{ ...smallBtn(C.blue), whiteSpace: "nowrap" }}>Set</button>
                       </div>
                       {m.role !== "owner" && currentUser.role === "owner" && (
                         <>
