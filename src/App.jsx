@@ -15,34 +15,25 @@ const parlayMultiplier = (legs) => legs.reduce((acc, odds) => {
 }, 1);
 const genCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 const sportIcon = {
-  americanfootball_nfl: "🏈", americanfootball_ncaaf: "🏈", americanfootball_nfl_preseason: "🏈", americanfootball_cfl: "🏈",
-  basketball_nba_summer_league: "🏀", basketball_wnba: "🏀",
+  americanfootball_nfl: "🏈",
+  americanfootball_ncaaf: "🏈",
+  basketball_nba: "🏀",
   baseball_mlb: "⚾",
   icehockey_nhl: "🏒",
-  mma_mixed_martial_arts: "🥊", boxing_boxing: "🥊",
-  soccer_fifa_world_cup: "⚽", soccer_epl: "⚽", soccer_usa_mls: "⚽", soccer_spain_la_liga: "⚽", soccer_italy_serie_a: "⚽", soccer_germany_bundesliga: "⚽", soccer_france_ligue_one: "⚽", soccer_conmebol_copa_libertadores: "⚽",
-  golf_masters_tournament_winner: "⛳", golf_the_open_championship_winner: "⛳",
-  aussierules_afl: "🏉",
 };
 const sportLabel = {
-  americanfootball_nfl: "NFL", americanfootball_ncaaf: "NCAAF", americanfootball_nfl_preseason: "NFL Pre", americanfootball_cfl: "CFL",
-  basketball_nba_summer_league: "NBA SL", basketball_wnba: "WNBA",
+  americanfootball_nfl: "NFL",
+  americanfootball_ncaaf: "NCAAF",
+  basketball_nba: "NBA",
   baseball_mlb: "MLB",
   icehockey_nhl: "NHL",
-  mma_mixed_martial_arts: "MMA", boxing_boxing: "Boxing",
-  soccer_fifa_world_cup: "World Cup", soccer_epl: "EPL", soccer_usa_mls: "MLS", soccer_spain_la_liga: "La Liga", soccer_italy_serie_a: "Serie A", soccer_germany_bundesliga: "Bundesliga", soccer_france_ligue_one: "Ligue 1", soccer_conmebol_copa_libertadores: "Copa Lib",
-  golf_masters_tournament_winner: "Masters", golf_the_open_championship_winner: "The Open",
-  aussierules_afl: "AFL",
 };
 const SPORT_KEYS = [
-  "americanfootball_nfl", "americanfootball_ncaaf", "americanfootball_nfl_preseason", "americanfootball_cfl",
-  "basketball_nba_summer_league", "basketball_wnba",
+  "americanfootball_nfl",
+  "americanfootball_ncaaf",
+  "basketball_nba",
   "baseball_mlb",
   "icehockey_nhl",
-  "mma_mixed_martial_arts", "boxing_boxing",
-  "soccer_fifa_world_cup", "soccer_epl", "soccer_usa_mls", "soccer_spain_la_liga", "soccer_italy_serie_a", "soccer_germany_bundesliga", "soccer_france_ligue_one", "soccer_conmebol_copa_libertadores",
-  "golf_masters_tournament_winner", "golf_the_open_championship_winner",
-  "aussierules_afl",
 ];
 
 const C = {
