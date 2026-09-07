@@ -152,7 +152,7 @@ export default function DoubleBSports() {
 
   const handleLogin = () => {
     if (loginName.trim().toLowerCase() === "commissioner") {
-      if (loginCode.trim() !== "Kcchiefs1!") { setLoginErr("Incorrect password."); return; }
+      if (loginCode.trim() !== "commissioner") { setLoginErr("Incorrect password."); return; }
       const owner = members.find(m => m.role === "owner");
       if (owner) { setCurrentUser(owner); setLoginErr(""); return; }
     }
@@ -327,6 +327,33 @@ export default function DoubleBSports() {
   const myWagers = wagers.filter(w => w.memberId === currentUser?.id);
   const leaderboard = [...members].sort((a, b) => b.balance - a.balance);
   const currentGames = games[sport] || [];
+
+  // Get start of current week (Tuesday)
+  const getWeekStart = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun, 1=Mon, 2=Tue...
+    const diff = day >= 2 ? day - 2 : day + 5;
+    const start = new Date(now);
+    start.setDate(now.getDate() - diff);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  };
+
+  const weekStart = getWeekStart();
+
+  // Group members by mod
+  const mods = members.filter(m => m.role === "mod" || m.role === "owner");
+  const getModMembers = (modId) => members.filter(m => m.addedBy === modId);
+  const getModWeeklyPL = (modId) => {
+    const modMemberIds = getModMembers(modId).map(m => m.id);
+    return wagers
+      .filter(w => modMemberIds.includes(w.memberId) && new Date(w.placedAt) >= weekStart)
+      .reduce((sum, w) => {
+        if (w.result === "win") return sum + (w.potentialReturn - w.stake);
+        if (w.result === "loss") return sum - w.stake;
+        return sum;
+      }, 0);
+  };
 
   if (!loaded) return <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.gold, fontSize: 18, fontWeight: 700 }}>Loading Double B Sports…</div>;
   if (!currentUser) return <LoginScreen loginName={loginName} setLoginName={setLoginName} loginCode={loginCode} setLoginCode={setLoginCode} loginErr={loginErr} onLogin={handleLogin} />;
@@ -533,36 +560,44 @@ export default function DoubleBSports() {
                   </div>
                 </div>
                 {members.filter(m => currentUser.role === "owner" || m.addedBy === currentUser.id || m.id === currentUser.id).map(m => (
-                  <div key={m.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 15 }}>{m.name}</div>
-                        <div style={{ fontSize: 12, color: C.muted }}>{m.role} · {m.status} · Code: <span style={{ color: C.gold, fontWeight: 700 }}>{m.inviteCode || "—"}</span></div>
-                      </div>
-                      <div style={{ fontSize: 16, fontWeight: 900, color: C.gold }}>${m.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <button onClick={() => updateMemberBalance(m.id, 100)} style={smallBtn(C.green)}>+$100</button>
-                      <button onClick={() => updateMemberBalance(m.id, -100)} style={smallBtn(C.red)}>-$100</button>
-                      <button onClick={() => updateMemberBalance(m.id, 500)} style={smallBtn(C.green)}>+$500</button>
-                      <div style={{ display: "flex", gap: 4, width: "100%", marginTop: 6 }}>
-                        <input type="number" placeholder="Set exact balance" value={customAmounts[m.id] || ""} onChange={e => setCustomAmounts(p => ({ ...p, [m.id]: e.target.value }))} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 12 }} />
-                        <button onClick={() => { setMemberBalance(m.id, customAmounts[m.id]); setCustomAmounts(p => ({ ...p, [m.id]: "" })); }} style={{ ...smallBtn(C.gold), whiteSpace: "nowrap" }}>Set</button>
-                      </div>
-                      <div style={{ display: "flex", gap: 4, width: "100%", marginTop: 6, alignItems: "center" }}>
-                        <span style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap" }}>Max Bet: <strong style={{ color: C.gold }}>${m.maxBet || 100}</strong></span>
-                        <input type="number" placeholder="Set max bet" value={maxBetAmounts[m.id] || ""} onChange={e => setMaxBetAmounts(p => ({ ...p, [m.id]: e.target.value }))} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 12 }} />
-                        <button onClick={() => { setMaxBet(m.id, maxBetAmounts[m.id]); setMaxBetAmounts(p => ({ ...p, [m.id]: "" })); }} style={{ ...smallBtn(C.blue), whiteSpace: "nowrap" }}>Set</button>
-                      </div>
-                      {m.role !== "owner" && currentUser.role === "owner" && (
-                        <>
-                          <button onClick={() => promoteRole(m.id, m.role === "mod" ? "member" : "mod")} style={smallBtn(C.blue)}>{m.role === "mod" ? "Demote" : "Make Mod"}</button>                          <button onClick={() => toggleMemberStatus(m.id)} style={smallBtn(m.status === "active" ? C.red : C.green)}>{m.status === "active" ? "Suspend" : "Reinstate"}</button>
-                          <button onClick={() => resetCode(m.id)} style={smallBtn(C.muted)}>New Code</button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <MemberCard key={m.id} m={m} members={members} currentUser={currentUser} C={C} inputStyle={inputStyle} smallBtn={smallBtn} btnStyle={btnStyle} customAmounts={customAmounts} setCustomAmounts={setCustomAmounts} maxBetAmounts={maxBetAmounts} setMaxBetAmounts={setMaxBetAmounts} updateMemberBalance={updateMemberBalance} setMemberBalance={setMemberBalance} setMaxBet={setMaxBet} promoteRole={promoteRole} toggleMemberStatus={toggleMemberStatus} resetCode={resetCode} />
                 ))}
+
+                {currentUser.role === "owner" && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: C.gold }}>📊 Weekly P&L by Moderator</div>
+                    {mods.filter(mod => mod.role === "mod").map(mod => {
+                      const modMembers = getModMembers(mod.id);
+                      const weeklyPL = getModWeeklyPL(mod.id);
+                      return (
+                        <div key={mod.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: 14 }}>{mod.name}</div>
+                              <div style={{ fontSize: 12, color: C.muted }}>{modMembers.length} members</div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontSize: 11, color: C.muted }}>This week</div>
+                              <div style={{ fontSize: 16, fontWeight: 900, color: weeklyPL >= 0 ? C.green : C.red }}>
+                                {weeklyPL >= 0 ? "+" : ""}${weeklyPL.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                          {modMembers.length > 0 && (
+                            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                              {modMembers.map(mem => (
+                                <div key={mem.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", color: C.muted }}>
+                                  <span>{mem.name}</span>
+                                  <span style={{ color: C.gold }}>${mem.balance.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -660,6 +695,46 @@ function OddsEditor({ games, sport, setGames, C, SPORT_KEYS, sportIcon, sportLab
     </div>
   );
 }
+
+function MemberCard({ m, members, currentUser, C, inputStyle, smallBtn, btnStyle, customAmounts, setCustomAmounts, maxBetAmounts, setMaxBetAmounts, updateMemberBalance, setMemberBalance, setMaxBet, promoteRole, toggleMemberStatus, resetCode }) {
+  const addedByMember = members.find(x => x.id === m.addedBy);
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{m.name}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>
+            {m.role} · {m.status} · Code: <span style={{ color: C.gold, fontWeight: 700 }}>{m.inviteCode || "—"}</span>
+            {addedByMember && <span> · Added by: <span style={{ color: C.blue }}>{addedByMember.name}</span></span>}
+          </div>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 900, color: C.gold }}>${m.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <button onClick={() => updateMemberBalance(m.id, 100)} style={smallBtn(C.green)}>+$100</button>
+        <button onClick={() => updateMemberBalance(m.id, -100)} style={smallBtn(C.red)}>-$100</button>
+        <button onClick={() => updateMemberBalance(m.id, 500)} style={smallBtn(C.green)}>+$500</button>
+        <div style={{ display: "flex", gap: 4, width: "100%", marginTop: 6 }}>
+          <input type="number" placeholder="Set exact balance" value={customAmounts[m.id] || ""} onChange={e => setCustomAmounts(p => ({ ...p, [m.id]: e.target.value }))} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 12 }} />
+          <button onClick={() => { setMemberBalance(m.id, customAmounts[m.id]); setCustomAmounts(p => ({ ...p, [m.id]: "" })); }} style={{ ...smallBtn(C.gold), whiteSpace: "nowrap" }}>Set</button>
+        </div>
+        <div style={{ display: "flex", gap: 4, width: "100%", marginTop: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap" }}>Max Bet: <strong style={{ color: C.gold }}>${m.maxBet || 100}</strong></span>
+          <input type="number" placeholder="Set max bet" value={maxBetAmounts[m.id] || ""} onChange={e => setMaxBetAmounts(p => ({ ...p, [m.id]: e.target.value }))} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 12 }} />
+          <button onClick={() => { setMaxBet(m.id, maxBetAmounts[m.id]); setMaxBetAmounts(p => ({ ...p, [m.id]: "" })); }} style={{ ...smallBtn(C.blue), whiteSpace: "nowrap" }}>Set</button>
+        </div>
+        {m.role !== "owner" && currentUser.role === "owner" && (
+          <>
+            <button onClick={() => promoteRole(m.id, m.role === "mod" ? "member" : "mod")} style={smallBtn(C.blue)}>{m.role === "mod" ? "Demote" : "Make Mod"}</button>
+            <button onClick={() => toggleMemberStatus(m.id)} style={smallBtn(m.status === "active" ? C.red : C.green)}>{m.status === "active" ? "Suspend" : "Reinstate"}</button>
+            <button onClick={() => resetCode(m.id)} style={smallBtn(C.muted)}>New Code</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen({ loginName, setLoginName, loginCode, setLoginCode, loginErr, onLogin }) {
   return (
     <div style={{ background: "#0A0E1A", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Inter','Segoe UI',sans-serif" }}>
