@@ -152,7 +152,7 @@ export default function DoubleBSports() {
 
   const handleLogin = () => {
     if (loginName.trim().toLowerCase() === "commissioner") {
-      if (loginCode.trim() !== "commissioner") { setLoginErr("Incorrect password."); return; }
+      if (loginCode.trim() !== "Kcchiefs1!") { setLoginErr("Incorrect password."); return; }
       const owner = members.find(m => m.role === "owner");
       if (owner) { setCurrentUser(owner); setLoginErr(""); return; }
     }
