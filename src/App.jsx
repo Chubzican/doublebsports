@@ -72,6 +72,7 @@ export default function DoubleBSports() {
   const [gamesLoading, setGamesLoading] = useState(false);
   const [gamesError, setGamesError] = useState(null);
   const [adminTab, setAdminTab] = useState("members");
+  const [modTab, setModTab] = useState("all");
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberBalance, setNewMemberBalance] = useState("1000");
   const [newMemberRole, setNewMemberRole] = useState("member");
@@ -617,74 +618,85 @@ export default function DoubleBSports() {
               ))}
             </div>
 
-            {adminTab === "members" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 12 }}>Add Member</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <input placeholder="Name" value={newMemberName} onChange={e => setNewMemberName(e.target.value)} style={inputStyle} />
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input placeholder="Starting balance" type="number" value={newMemberBalance} onChange={e => setNewMemberBalance(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                      {currentUser.role === "owner" && (
-                        <select value={newMemberRole} onChange={e => setNewMemberRole(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-                          <option value="member">Member</option>
-                          <option value="mod">Moderator</option>
-                        </select>
-                      )}
-                    </div>
-                    <button onClick={addMember} style={btnStyle(C.gold, C.bg)}>Create & Get Invite Code</button>
-                  </div>
-                </div>
-                {members.filter(m => currentUser.role === "owner" || m.addedBy === currentUser.id || m.id === currentUser.id).map(m => (
-                  <MemberCard key={m.id} m={m} members={members} currentUser={currentUser} C={C} inputStyle={inputStyle} smallBtn={smallBtn} btnStyle={btnStyle} customAmounts={customAmounts} setCustomAmounts={setCustomAmounts} maxBetAmounts={maxBetAmounts} setMaxBetAmounts={setMaxBetAmounts} updateMemberBalance={updateMemberBalance} setMemberBalance={setMemberBalance} setMaxBet={setMaxBet} promoteRole={promoteRole} toggleMemberStatus={toggleMemberStatus} resetCode={resetCode} deleteMember={deleteMember} />
-                ))}
+            {adminTab === "members" && (() => {
+              const modList = members.filter(m => m.role === "mod");
+              const tabs = currentUser.role === "owner"
+                ? ["all", "commissioner", ...modList.map(m => m.id)]
+                : [currentUser.id];
+              const getTabLabel = (t) => {
+                if (t === "all") return "All";
+                if (t === "commissioner") return "Commissioner";
+                return members.find(m => m.id === t)?.name || t;
+              };
+              const getTabMembers = (t) => {
+                if (t === "all") return members.filter(m => m.role !== "owner");
+                if (t === "commissioner") return members.filter(m => !m.addedBy && m.role !== "owner");
+                return members.filter(m => m.addedBy === t);
+              };
+              const activeTab = modTab;
+              const tabMembers = getTabMembers(activeTab);
+              const tabMod = modList.find(m => m.id === activeTab);
+              const weeklyPL = tabMod ? getModWeeklyPL(tabMod.id) : null;
 
-                {currentUser.role === "owner" && (
-                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 4 }}>
-                    <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10, color: C.gold }}>🔐 Change Commissioner Password</div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input type="password" placeholder="New password" value={newCommPassword} onChange={e => setNewCommPassword(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                      <button onClick={() => { changeCommPassword(newCommPassword); setNewCommPassword(""); }} style={{ ...smallBtn(C.gold), whiteSpace: "nowrap" }}>Update</button>
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* Add Member */}
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 12 }}>Add Member</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <input placeholder="Name" value={newMemberName} onChange={e => setNewMemberName(e.target.value)} style={inputStyle} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input placeholder="Starting balance" type="number" value={newMemberBalance} onChange={e => setNewMemberBalance(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                        {currentUser.role === "owner" && (
+                          <select value={newMemberRole} onChange={e => setNewMemberRole(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+                            <option value="member">Member</option>
+                            <option value="mod">Moderator</option>
+                          </select>
+                        )}
+                      </div>
+                      <button onClick={addMember} style={btnStyle(C.gold, C.bg)}>Create & Get Invite Code</button>
                     </div>
                   </div>
-                )}
-                {currentUser.role === "owner" && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: C.gold }}>📊 Weekly P&L by Moderator</div>
-                    {mods.filter(mod => mod.role === "mod").map(mod => {
-                      const modMembers = getModMembers(mod.id);
-                      const weeklyPL = getModWeeklyPL(mod.id);
-                      return (
-                        <div key={mod.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: 14 }}>{mod.name}</div>
-                              <div style={{ fontSize: 12, color: C.muted }}>{modMembers.length} members</div>
-                            </div>
-                            <div style={{ textAlign: "right" }}>
-                              <div style={{ fontSize: 11, color: C.muted }}>This week</div>
-                              <div style={{ fontSize: 16, fontWeight: 900, color: weeklyPL >= 0 ? C.green : C.red }}>
-                                {weeklyPL >= 0 ? "+" : ""}${weeklyPL.toFixed(2)}
-                              </div>
-                            </div>
-                          </div>
-                          {modMembers.length > 0 && (
-                            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                              {modMembers.map(mem => (
-                                <div key={mem.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", color: C.muted }}>
-                                  <span>{mem.name}</span>
-                                  <span style={{ color: C.gold }}>${mem.balance.toFixed(2)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+
+                  {/* Mod Tabs */}
+                  <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+                    {tabs.map(t => (
+                      <button key={t} onClick={() => setModTab(t)} style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${activeTab === t ? C.gold : C.border}`, background: activeTab === t ? C.goldDim : "transparent", color: activeTab === t ? C.gold : C.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        {getTabLabel(t)}
+                        {t !== "all" && t !== "commissioner" && <span style={{ marginLeft: 4, fontSize: 10 }}>({getTabMembers(t).length})</span>}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Weekly PL for mod tab */}
+                  {weeklyPL !== null && (
+                    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, color: C.muted }}>This week's P&L</span>
+                      <span style={{ fontSize: 18, fontWeight: 900, color: weeklyPL >= 0 ? C.green : C.red }}>{weeklyPL >= 0 ? "+" : ""}${weeklyPL.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* Member Cards */}
+                  {tabMembers.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "30px 0", color: C.muted }}>No members in this group yet</div>
+                  )}
+                  {tabMembers.map(m => (
+                    <MemberCard key={m.id} m={m} members={members} currentUser={currentUser} C={C} inputStyle={inputStyle} smallBtn={smallBtn} btnStyle={btnStyle} customAmounts={customAmounts} setCustomAmounts={setCustomAmounts} maxBetAmounts={maxBetAmounts} setMaxBetAmounts={setMaxBetAmounts} updateMemberBalance={updateMemberBalance} setMemberBalance={setMemberBalance} setMaxBet={setMaxBet} promoteRole={promoteRole} toggleMemberStatus={toggleMemberStatus} resetCode={resetCode} deleteMember={deleteMember} />
+                  ))}
+
+                  {/* Commissioner Password */}
+                  {currentUser.role === "owner" && (
+                    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10, color: C.gold }}>🔐 Change Commissioner Password</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input type="password" placeholder="New password" value={newCommPassword} onChange={e => setNewCommPassword(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                        <button onClick={() => { changeCommPassword(newCommPassword); setNewCommPassword(""); }} style={{ ...smallBtn(C.gold), whiteSpace: "nowrap" }}>Update</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {adminTab === "grade" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
