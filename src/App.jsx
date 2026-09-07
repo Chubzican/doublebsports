@@ -80,7 +80,7 @@ export default function DoubleBSports() {
     (async () => {
       const { data: m } = await supabase.from("members").select("*");
       const { data: w } = await supabase.from("wagers").select("*");
-      if (m && m.length) setMembers(m.map(r => ({ id: r.id, name: r.name, role: r.role, balance: r.balance, inviteCode: r.invite_code, status: r.status, joinedAt: r.joined_at, maxBet: r.max_bet || 100 })));
+      if (m && m.length) setMembers(m.map(r => ({ id: r.id, name: r.name, role: r.role, balance: r.balance, inviteCode: r.invite_code, status: r.status, joinedAt: r.joined_at, maxBet: r.max_bet || 100, addedBy: r.added_by })));
       if (w) setWagers(w.map(r => ({ id: r.id, memberId: r.member_id, memberName: r.member_name, type: r.type, stake: r.stake, potentialReturn: r.potential_return, result: r.result, placedAt: r.placed_at, leg: r.leg, legs: r.legs })));
       setLoaded(true);
     })();
@@ -151,7 +151,8 @@ export default function DoubleBSports() {
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
   const handleLogin = () => {
-    if (loginName.trim().toLowerCase() === "commissioner" && loginCode === "") {
+    if (loginName.trim().toLowerCase() === "commissioner") {
+      if (loginCode.trim() !== "commissioner") { setLoginErr("Incorrect password."); return; }
       const owner = members.find(m => m.role === "owner");
       if (owner) { setCurrentUser(owner); setLoginErr(""); return; }
     }
@@ -275,8 +276,8 @@ export default function DoubleBSports() {
   const addMember = async () => {
     if (!newMemberName.trim()) return;
     const code = genCode();
-    const m = { id: `m-${Date.now()}`, name: newMemberName.trim(), role: newMemberRole, balance: parseFloat(newMemberBalance) || 1000, inviteCode: code, status: "active", joinedAt: Date.now() };
-    await supabase.from("members").insert({ id: m.id, name: m.name, role: m.role, balance: m.balance, invite_code: m.inviteCode, status: m.status, joined_at: m.joinedAt });
+    const m = { id: `m-${Date.now()}`, name: newMemberName.trim(), role: newMemberRole, balance: parseFloat(newMemberBalance) || 1000, inviteCode: code, status: "active", joinedAt: Date.now(), addedBy: currentUser.id };
+    await supabase.from("members").insert({ id: m.id, name: m.name, role: m.role, balance: m.balance, invite_code: m.inviteCode, status: m.status, joined_at: m.joinedAt, added_by: m.addedBy });
     setMembers(p => [...p, m]);
     setShowInvite({ name: m.name, code });
     setNewMemberName(""); setNewMemberBalance("1000"); setNewMemberRole("member");
@@ -521,15 +522,17 @@ export default function DoubleBSports() {
                     <input placeholder="Name" value={newMemberName} onChange={e => setNewMemberName(e.target.value)} style={inputStyle} />
                     <div style={{ display: "flex", gap: 8 }}>
                       <input placeholder="Starting balance" type="number" value={newMemberBalance} onChange={e => setNewMemberBalance(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                      <select value={newMemberRole} onChange={e => setNewMemberRole(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-                        <option value="member">Member</option>
-                        <option value="mod">Moderator</option>
-                      </select>
+                      {currentUser.role === "owner" && (
+                        <select value={newMemberRole} onChange={e => setNewMemberRole(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+                          <option value="member">Member</option>
+                          <option value="mod">Moderator</option>
+                        </select>
+                      )}
                     </div>
                     <button onClick={addMember} style={btnStyle(C.gold, C.bg)}>Create & Get Invite Code</button>
                   </div>
                 </div>
-                {members.map(m => (
+                {members.filter(m => currentUser.role === "owner" || m.addedBy === currentUser.id || m.id === currentUser.id).map(m => (
                   <div key={m.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                       <div>
@@ -553,8 +556,7 @@ export default function DoubleBSports() {
                       </div>
                       {m.role !== "owner" && currentUser.role === "owner" && (
                         <>
-                          <button onClick={() => promoteRole(m.id, m.role === "mod" ? "member" : "mod")} style={smallBtn(C.blue)}>{m.role === "mod" ? "Demote" : "Make Mod"}</button>
-                          <button onClick={() => toggleMemberStatus(m.id)} style={smallBtn(m.status === "active" ? C.red : C.green)}>{m.status === "active" ? "Suspend" : "Reinstate"}</button>
+                          <button onClick={() => promoteRole(m.id, m.role === "mod" ? "member" : "mod")} style={smallBtn(C.blue)}>{m.role === "mod" ? "Demote" : "Make Mod"}</button>                          <button onClick={() => toggleMemberStatus(m.id)} style={smallBtn(m.status === "active" ? C.red : C.green)}>{m.status === "active" ? "Suspend" : "Reinstate"}</button>
                           <button onClick={() => resetCode(m.id)} style={smallBtn(C.muted)}>New Code</button>
                         </>
                       )}
@@ -671,7 +673,7 @@ function LoginScreen({ loginName, setLoginName, loginCode, setLoginCode, loginEr
         <div style={{ background: "#111827", border: "1px solid #1F2D45", borderRadius: 14, padding: 24 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <input placeholder="Your name" value={loginName} onChange={e => setLoginName(e.target.value)} style={inputStyle} onKeyDown={e => e.key === "Enter" && onLogin()} />
-            <input placeholder="Invite code (members only)" value={loginCode} onChange={e => setLoginCode(e.target.value.toUpperCase())} style={{ ...inputStyle, letterSpacing: 4, fontWeight: 700 }} onKeyDown={e => e.key === "Enter" && onLogin()} />
+            <input placeholder="Password / Invite code" value={loginCode} onChange={e => setLoginCode(e.target.value)} style={{ ...inputStyle, letterSpacing: 2, fontWeight: 700 }} onKeyDown={e => e.key === "Enter" && onLogin()} />
             {loginErr && <div style={{ color: "#EF4444", fontSize: 13 }}>{loginErr}</div>}
             <button onClick={onLogin} style={{ background: "#F5B800", color: "#0A0E1A", border: "none", borderRadius: 8, padding: "13px 0", fontWeight: 900, fontSize: 16, cursor: "pointer" }}>Enter</button>
           </div>
